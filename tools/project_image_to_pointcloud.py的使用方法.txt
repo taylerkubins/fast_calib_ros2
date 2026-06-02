@@ -1,0 +1,2 @@
+用法（将图像根据标定得到的外参投影到lidar点云中）:
+python3 project_image_to_pointcloud.py --calib /home/jetson/calib_ws/src/FAST-Calib_Ros2/output/calib_result.txt --vis

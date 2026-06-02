@@ -1,0 +1,34 @@
+# colored_cloud.ply 生成参数（独立于 FAST-Calib_Ros2）
+
+# ROS2 bag 目录（含 metadata.yaml 与 .db3），或单个 .db3 文件路径
+bag_path: "/home/byd/cxl/calib_ws/reprojection_ws/0602/rosbag2_2026_06_02-14_29_33"
+lidar_topic: "/livox/lidar"
+
+# 从 bag 内读取相机图像（留空则自动选择第一个 Image/CompressedImage 话题）
+image_topic: "/camera/camera/color/image_raw"
+# 使用 bag 中第几帧图像（0 = 第一帧）
+image_frame_index: 70
+
+# LiDAR -> Camera 外参（FAST-LIVO2 calib_result.txt，含 Rcl / Pcl 及可选内参）
+extrinsic_calib_path: "/home/byd/cxl/calib_ws/reprojection_ws/config/calib_result.txt"
+
+# 输出目录（生成 colored_cloud.ply，可选 colored_cloud.pcd）
+output_path: "/home/byd/cxl/calib_ws/reprojection_ws/output/rosbag2_2026_06_02-14_29_33"
+
+# 若 extrinsic_calib_path 中无内参，可在此覆盖（留空则仅从 calib_result 读取）
+camera:
+  fx: 607.1067504882812
+  fy: 607.1276245117188
+  cx: 321.0816955566406
+  cy: 243.12318420410156
+  k1: 0.0
+  k2: 0.0
+  p1: 0.0
+  p2: 0.0
+
+# bag 点云读取：0 表示合并 bag 内全部 LiDAR 帧（与 FAST-Calib data_preprocess 一致）
+max_lidar_frames: 0
+# 投影前对点云均匀降采样步长（1=不降采样）
+skip_rate: 1
+# 是否同时输出 colored_cloud.pcd（ASCII）
+save_pcd: false
