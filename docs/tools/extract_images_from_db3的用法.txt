@@ -1,0 +1,6 @@
+# 基础用法（从录制的.db3文件中提取多帧图片）
+
+python3 extract_images_from_db3.py -d /path/to/rosbag2_xxx_0.db3 -o ./out -i 10
+
+-d是.db3文件的输入路径，-o是提取的图像保存路径，-i 是每间隔多少帧保存一张图片
+

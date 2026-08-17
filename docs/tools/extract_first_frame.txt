@@ -1,0 +1,4 @@
+# 基础用法（从录制的.db3文件中提取一帧PCD和图像数据）
+python3 extract_first_frame.py /home/jetson/calib_ws/rosbag2_2026_12_02/calib_12_02/left
+提取到的PCD文件和图像放到了录包的目录下。
+

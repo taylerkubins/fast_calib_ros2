@@ -1,0 +1,7 @@
+# 基础用法（从录制的.db3文件中提取PCD文件）
+python PCDfromdb3.py --db3 /home/jetson/Desktop/rosbag2_2025_09_09-13_50_55/calib_12_02/middle/rosbag2_2025_12_02-15_36_30_0.db3 --topic /livox/lidar
+
+
+# 进阶用法：指定输出目录 + 每10帧保存1帧（减少文件数量）
+python3 db3_to_pcd.py --db3 rosbag2_2025_09_09-13_50_55_0.db3 --topic /lidar_points --output ./my_pcd --skip 9
+
