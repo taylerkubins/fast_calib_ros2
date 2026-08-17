@@ -7,17 +7,21 @@ which is included as part of this source code package.
 
 #ifndef COMMON_LIB_H
 #define COMMON_LIB_H
+#define PCL_NO_PRECOMPILE
 
 #include <opencv2/opencv.hpp>
 #include <pcl/io/pcd_io.h>
 #include <pcl/io/ply_io.h>
 #include <pcl/point_types.h>
 #include <pcl/common/centroid.h>
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cctype>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <vector>
 
 #include "color.h"
 
@@ -27,44 +31,29 @@ using namespace pcl;
 
 #define TARGET_NUM_CIRCLES 4
 #define DEBUG 1
-#define GEOMETRY_TOLERANCE 0.06
+#define GEOMETRY_TOLERANCE 0.08
 
-// namespace CommonLiDAR
-// {
-//   struct EIGEN_ALIGN16 Point
-//   {
-//     PCL_ADD_POINT4D;     // quad-word XYZ
-//     float intensity;     ///< laser intensity reading
-//     std::uint16_t ring;  ///< laser ring number
-//     float range;
-//     EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
-//   };
+enum class LiDARType : int
+{
+  Unknown = 0,
+  Solid = 1, // 固态（Livox 等）
+  Mech = 2   // 机械式多线（含 ring/line）
+};
 
-//   void addRange(pcl::PointCloud<CommonLiDAR::Point> &pc)
-//   {
-//     for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
-//          pt < pc.points.end(); pt++) {
-//       pt->range = sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);
-//     }
-//   }
-
-//   vector<vector<Point *>> getRings(pcl::PointCloud<CommonLiDAR::Point> &pc,
-//                                    int rings_count)
-//   {
-//     vector<vector<Point *>> rings(rings_count);
-//     for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
-//          pt < pc.points.end(); pt++) {
-//       rings[pt->ring].push_back(&(*pt));
-//     }
-//     return rings;
-//   }
-// }  // namespace Ouster
-
-// POINT_CLOUD_REGISTER_POINT_STRUCT(CommonLiDAR::Point,
-//                                   (float, x, x)(float, y, y)(float, z, z)(
-//                                       float, intensity,
-//                                       intensity)(std::uint16_t, ring,
-//                                                   ring)(float, range, range));
+namespace Common
+{
+  struct Point
+  {
+    PCL_ADD_POINT4D;
+    std::uint16_t ring = 0;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  } EIGEN_ALIGN16;
+}
+POINT_CLOUD_REGISTER_POINT_STRUCT(Common::Point,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (std::uint16_t, ring, ring))
 
 // 参数结构体
 struct Params
@@ -73,9 +62,9 @@ struct Params
   double fx, fy, cx, cy, k1, k2, p1, p2;
   double marker_size, delta_width_qr_center, delta_height_qr_center;
   double delta_width_circles, delta_height_circles, circle_radius;
-  double circle_fit_error_threshold; // LiDAR 圆拟合可接受误差阈值，小于该值的圆心才被接受（默认 0.02）
-  double circle_center_merge_distance; // 两圆心在平面内距离小于此值视为同一圆，保留误差更小者（默认 0.03 m）
-  int edge_cluster_min_size;          // 边缘聚类最小点数，过大会漏掉点少的圆孔（默认 30）
+  double circle_fit_error_threshold; // LiDAR 圆拟合可接受误差阈值（ROS1 solid 为 0.025）
+  double edge_cluster_tolerance;     // 边缘欧氏聚类距离阈值（ROS1 solid 为 0.05）
+  int edge_cluster_min_size;         // 边缘聚类最小点数（ROS1 solid 为 50）
   int min_detected_markers;
   string image_path;
   string bag_path;
@@ -110,9 +99,9 @@ Params loadParameters(rclcpp::Node::SharedPtr node)
   node->declare_parameter("delta_height_circles", 0.4);
   node->declare_parameter("min_detected_markers", 3);
   node->declare_parameter("circle_radius", 0.12);
-  node->declare_parameter("circle_fit_error_threshold", 0.02);
-  node->declare_parameter("circle_center_merge_distance", 0.03);
-  node->declare_parameter("edge_cluster_min_size", 30);
+  node->declare_parameter("circle_fit_error_threshold", 0.025);
+  node->declare_parameter("edge_cluster_tolerance", 0.05);
+  node->declare_parameter("edge_cluster_min_size", 50);
   node->declare_parameter("image_path", string("/home/chunran/calib_ws/src/fast_calib/data/image.png"));
   node->declare_parameter("bag_path", string("/home/chunran/calib_ws/src/fast_calib/data/input.bag"));
   node->declare_parameter("lidar_topic", string("/livox/lidar"));
@@ -145,9 +134,9 @@ Params loadParameters(rclcpp::Node::SharedPtr node)
   node->get_parameter_or("delta_height_circles", params.delta_height_circles, 0.4);
   node->get_parameter_or("min_detected_markers", params.min_detected_markers, 3);
   node->get_parameter_or("circle_radius", params.circle_radius, 0.12);
-  node->get_parameter_or("circle_fit_error_threshold", params.circle_fit_error_threshold, 0.02);
-  node->get_parameter_or("circle_center_merge_distance", params.circle_center_merge_distance, 0.03);
-  node->get_parameter_or("edge_cluster_min_size", params.edge_cluster_min_size, 30);
+  node->get_parameter_or("circle_fit_error_threshold", params.circle_fit_error_threshold, 0.025);
+  node->get_parameter_or("edge_cluster_tolerance", params.edge_cluster_tolerance, 0.05);
+  node->get_parameter_or("edge_cluster_min_size", params.edge_cluster_min_size, 50);
   node->get_parameter_or("image_path", params.image_path, string("/home/chunran/calib_ws/src/fast_calib/data/image.png"));
   node->get_parameter_or("bag_path", params.bag_path, string("/home/chunran/calib_ws/src/fast_calib/data/input.bag"));
   node->get_parameter_or("lidar_topic", params.lidar_topic, string("/livox/lidar"));
@@ -268,6 +257,34 @@ void alignPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &input_cloud,
     Eigen::Vector4f transformed_pt = transformation * pt_homogeneous;
     output_cloud->push_back(pcl::PointXYZ(transformed_pt(0), transformed_pt(1), transformed_pt(2)));
   }
+}
+
+// 组合数 C(N,K)，用于从候选圆心中枚举 4 点几何一致性校验（与 ROS1 一致）
+inline void comb(int N, int K, std::vector<std::vector<int>> &groups)
+{
+  int upper_factorial = 1;
+  int lower_factorial = 1;
+  for (int i = 0; i < K; i++)
+  {
+    upper_factorial *= (N - i);
+    lower_factorial *= (K - i);
+  }
+  int n_permutations = upper_factorial / lower_factorial;
+
+  std::string bitmask(K, 1);
+  bitmask.resize(N, 0);
+  do
+  {
+    std::vector<int> group;
+    for (int i = 0; i < N; ++i)
+    {
+      if (bitmask[i])
+        group.push_back(i);
+    }
+    groups.push_back(group);
+  } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+
+  assert(groups.size() == static_cast<size_t>(n_permutations));
 }
 
 void projectPointCloudToImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,

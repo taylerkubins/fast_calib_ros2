@@ -32,6 +32,7 @@ endif()
 
 # Create executable
 add_executable(fast_calib src/main.cpp)
+target_compile_definitions(fast_calib PRIVATE PCL_NO_PRECOMPILE)
 
 # Link libraries
 ament_target_dependencies(fast_calib

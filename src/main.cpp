@@ -5,12 +5,14 @@ This file is subject to the terms and conditions outlined in the 'LICENSE' file,
 which is included as part of this source code package.
 */
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/common/io.h>
+#include <pcl/registration/transformation_estimation_svd.h>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <cstring>
 
-#include "qr_detect.hpp"
 #include "lidar_detect.hpp"
+#include "qr_detect.hpp"
 #include "data_preprocess.hpp"
 
 int main(int argc, char **argv)
@@ -33,17 +35,30 @@ int main(int argc, char **argv)
 
   // 读取图像和点云
   cv::Mat img_input = dataPreprocessPtr->img_input_;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_input = dataPreprocessPtr->cloud_input_;
+  pcl::PointCloud<Common::Point>::Ptr cloud_input = dataPreprocessPtr->cloud_input_;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::copyPointCloud(*cloud_input, *cloud_xyz);
 
   // 检测 QR 码
   PointCloud<PointXYZ>::Ptr qr_center_cloud(new PointCloud<PointXYZ>);
   qr_center_cloud->reserve(4);
   qrDetectPtr->detect_qr(img_input, qr_center_cloud);
 
-  // 检测 LiDAR 数据
+  // 检测 LiDAR 数据（与 ROS1 相同：按雷达类型分流）
   PointCloud<PointXYZ>::Ptr lidar_center_cloud(new PointCloud<PointXYZ>);
   lidar_center_cloud->reserve(4);
-  lidarDetectPtr->detect_lidar(cloud_input, lidar_center_cloud);
+  switch (dataPreprocessPtr->lidar_type_)
+  {
+  case LiDARType::Solid:
+    lidarDetectPtr->detect_solid_lidar(cloud_input, lidar_center_cloud);
+    break;
+  case LiDARType::Mech:
+    lidarDetectPtr->detect_mech_lidar(cloud_input, lidar_center_cloud);
+    break;
+  default:
+    RCLCPP_ERROR(node->get_logger(), "[Main] Unknown LiDAR type.");
+    break;
+  }
 
   // 对 QR 和 LiDAR 检测到的圆心进行排序（LiDAR 使用配置的轴映射）
   PointCloud<PointXYZ>::Ptr qr_centers(new PointCloud<PointXYZ>);
@@ -51,20 +66,25 @@ int main(int argc, char **argv)
   sortPatternCenters(qr_center_cloud, qr_centers, "camera");
   sortPatternCenters(lidar_center_cloud, lidar_centers, "lidar", &params);
 
-  // 计算外参
-  Eigen::Matrix4f transformation;
-  pcl::registration::TransformationEstimationSVD<pcl::PointXYZ, pcl::PointXYZ> svd;
-  svd.estimateRigidTransformation(*lidar_centers, *qr_centers, transformation);
-
-  // 将 LiDAR 点云转换到 QR 码坐标系
+  Eigen::Matrix4f transformation = Eigen::Matrix4f::Identity();
   pcl::PointCloud<pcl::PointXYZ>::Ptr aligned_lidar_centers(new pcl::PointCloud<pcl::PointXYZ>);
-  aligned_lidar_centers->reserve(lidar_centers->size());
-  alignPointCloud(lidar_centers, aligned_lidar_centers, transformation);
-
-  double rmse = computeRMSE(qr_centers, aligned_lidar_centers);
-  if (rmse > 0)
+  double rmse = -1.0;
+  const bool have_four_pairs = (qr_centers->size() == 4 && lidar_centers->size() == 4);
+  if (!have_four_pairs)
   {
-    RCLCPP_INFO(node->get_logger(), "[Result] RMSE: %.4f m", rmse);
+    RCLCPP_ERROR(node->get_logger(),
+                 "[Main] Skip SVD: qr_centers=%zu lidar_centers=%zu (need 4/4).",
+                 qr_centers->size(), lidar_centers->size());
+  }
+  else
+  {
+    pcl::registration::TransformationEstimationSVD<pcl::PointXYZ, pcl::PointXYZ> svd;
+    svd.estimateRigidTransformation(*lidar_centers, *qr_centers, transformation);
+    aligned_lidar_centers->reserve(lidar_centers->size());
+    alignPointCloud(lidar_centers, aligned_lidar_centers, transformation);
+    rmse = computeRMSE(qr_centers, aligned_lidar_centers);
+    if (rmse > 0)
+      RCLCPP_INFO(node->get_logger(), "[Result] RMSE: %.4f m", rmse);
   }
 
   Eigen::Matrix4f external_transformation = Eigen::Matrix4f::Identity();
@@ -122,9 +142,9 @@ int main(int argc, char **argv)
   }
 
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-  projectPointCloudToImage(cloud_input, projection_transformation, qrDetectPtr->cameraMatrix_, qrDetectPtr->distCoeffs_, img_input, colored_cloud);
+  projectPointCloudToImage(cloud_xyz, projection_transformation, qrDetectPtr->cameraMatrix_, qrDetectPtr->distCoeffs_, img_input, colored_cloud);
   cv::Mat overlay_image;
-  projectPointCloudOverlayImage(cloud_input, projection_transformation, qrDetectPtr->cameraMatrix_, qrDetectPtr->distCoeffs_, img_input, overlay_image, 2);
+  projectPointCloudOverlayImage(cloud_xyz, projection_transformation, qrDetectPtr->cameraMatrix_, qrDetectPtr->distCoeffs_, img_input, overlay_image, 2);
 
   saveCalibrationResults(params, transformation, colored_cloud, qrDetectPtr->imageCopy_,
                          rmse, qrDetectPtr->reprojection_rmse_px_, external_rmse_m);

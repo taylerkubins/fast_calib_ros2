@@ -2,14 +2,14 @@ fast_calib:
   ros__parameters:
     # Camera intrinsics  
 
-    fx: 607.1067504882812
-    fy: 607.1276245117188
-    cx: 321.0816955566406
-    cy: 243.12318420410156
-    k1: 0.0
-    k2: 0.0
-    p1: 0.0
-    p2: 0.0
+    fx: 385.7698974609375
+    fy: 385.11981201171875
+    cx: 323.05963134765625
+    cy: 246.34474182128906
+    k1: -0.05645643174648285
+    k2: 0.06506411731243134
+    p1: -0.0007090572617016733
+    p2: 0.0008867516880854964
 
     #fx: 643.1249389648438
     #fy: 642.041259765625
@@ -27,9 +27,11 @@ fast_calib:
     delta_width_circles: 0.50 # Distance between the centers of two circles in the horizontal direction
     delta_height_circles: 0.40 # Distance between the centers of two circles in the vertical direction
     circle_radius: 0.12 # Radius of the circle (m)
-    circle_fit_error_threshold: 0.05 # LiDAR 圆拟合可接受误差阈值，小于该值的圆心才被接受
-    circle_center_merge_distance: 0.10 # 两圆心平面距离小于此值视为同一圆，保留误差更小者，可消除“一圆两心”
-    edge_cluster_min_size: 30 # 边缘聚类最小点数，点少的圆孔漏检时可适当减小（如 20）
+    # 圆拟合已对齐 ROS1 detect_mech_lidar：在边缘点上迭代 RANSAC + 几何筛选。
+    # 下列聚类参数仅作兼容保留，当前主路径不再使用。
+    circle_fit_error_threshold: 0.025
+    edge_cluster_tolerance: 0.05
+    edge_cluster_min_size: 30
 
     # marker_size: 0.20 # ArUco marker size (our test data uses 0.16m; adjust to match your marker size)
     # delta_width_qr_center: 0.55 # Half the distance between the centers of two markers in the horizontal direction 
@@ -48,22 +50,22 @@ fast_calib:
 
 
     
-    x_min: 2.0
-    x_max: 3.9
-    y_min: -1.0
-    y_max: 0.8
-    z_min: 1.0
-    z_max: 2.3
+    x_min: 2.3
+    x_max: 2.9
+    y_min: -0.7
+    y_max: 0.9
+    z_min: 0.5
+    z_max: 2.5
 
 
     # Input
     lidar_topic: "/livox/lidar"  #"/livox/lidar" # /ouster/points /livox/lidar
     #max_lidar_frames: 3
-    bag_path: "/home/byd/cxl/calib_ws/lidar-camera-calibration/rosbag2_2026_06_01/bag" #"/home/tommy/FAST-Calib/FAST-Calib-ROS2/calib_data/mid360_11"
-    image_path: "/home/byd/cxl/calib_ws/lidar-camera-calibration/rosbag2_2026_06_01/image_1.png" #"/home/tommy/FAST-Calib/FAST-Calib-ROS2/calib_data/mid360_11/11.png"
+    bag_path: "/home/byd/cxl/bag/0817-hand-hold/rosbag2_2026_08_17-09_43_13" #"/home/tommy/FAST-Calib/FAST-Calib-ROS2/calib_data/mid360_11"
+    image_path: "/home/byd/cxl/bag/0817-hand-hold/rosbag2_2026_08_17-09_43_13/doc/image_1.png" #"/home/tommy/FAST-Calib/FAST-Calib-ROS2/calib_data/mid360_11/11.png"
     use_external_extrinsic_eval: false
     use_external_extrinsic_for_coloring: false
-    external_calib_result_path: "/home/byd/cxl/calib_ws/lidar-camera-calibration/rosbag2_2026_05_26-16_14_59/result/calib_result.txt"
+    external_calib_result_path: "/home/byd/cxl/bag/0817-hand-hold/rosbag2_2026_08_17-09_43_13/doc/calib_result.txt"
 
     # LiDAR 与相机轴安装映射（用于圆心排序时的坐标对齐）
     # 格式：相机各轴由哪条 LiDAR 轴及符号得到。可选: "x", "-x", "y", "-y", "z", "-z"
@@ -73,4 +75,4 @@ fast_calib:
     lidar_axis_cam_z: "x"    # 相机 Z = LiDAR X
 
     # Output
-    output_path: "/home/byd/cxl/calib_ws/lidar-camera-calibration/rosbag2_2026_06_01/result"
+    output_path: "/home/byd/cxl/bag/0817-hand-hold/rosbag2_2026_08_17-09_43_13/doc"
